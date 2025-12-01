@@ -1,5 +1,5 @@
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { Bill } from '../../types';
 import { useAppContext } from '../../hooks/useAppContext';
 
@@ -11,32 +11,76 @@ interface InvoiceModalProps {
 const InvoiceModal: React.FC<InvoiceModalProps> = ({ bill, onNewBill }) => {
     const { shopDetails } = useAppContext();
     const invoiceRef = useRef<HTMLDivElement>(null);
-    const qrRef = useRef<HTMLCanvasElement>(null);
+    const [qrStatus, setQrStatus] = useState("Generating...");
 
-    useEffect(() => {
-        if (qrRef.current && (window as any).QRCode) {
-            try {
-                const digitalReceipt = {
-                    shop: shopDetails.name,
-                    date: new Date().toLocaleDateString(),
-                    total: bill.total,
-                    items: bill.items.map(i => ({n: i.name, p: i.price, q: i.quantity})),
-                    method: bill.paymentMethod
-                };
-                
-                (window as any).QRCode.toCanvas(qrRef.current, JSON.stringify(digitalReceipt), {
-                    width: 100,
-                    margin: 0,
-                    color: {
-                        dark: "#000000",
-                        light: "#ffffff"
+    // Helper to ensure QR Lib is loaded
+    const ensureQrLib = async (): Promise<any> => {
+        if ((window as any).QRCode) return (window as any).QRCode;
+        if ((window as any).qrcode) return (window as any).qrcode;
+
+        return new Promise((resolve, reject) => {
+            console.log("Invoice Modal: QR Lib missing, attempting dynamic load...");
+            const script = document.createElement('script');
+            // Use a reliable CDN fallback
+            script.src = "https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.1/qrcode.min.js";
+            script.async = true;
+            script.onload = () => {
+                console.log("Invoice Modal: QR Lib loaded dynamically");
+                resolve((window as any).QRCode || (window as any).qrcode);
+            };
+            script.onerror = () => {
+                console.error("Invoice Modal: Dynamic QR Lib load failed");
+                reject(new Error("Failed to load QR library"));
+            };
+            document.body.appendChild(script);
+        });
+    };
+
+    // Use Callback Ref to ensure canvas is ready
+    const qrCanvasRef = useCallback((canvas: HTMLCanvasElement | null) => {
+        if (canvas !== null) {
+            
+            const generate = async () => {
+                try {
+                     const lib = await ensureQrLib();
+                     
+                     const digitalReceipt = {
+                        shop: shopDetails.name,
+                        date: new Date().toLocaleDateString(),
+                        total: bill.total,
+                        items: bill.items.map(i => ({n: i.name, p: i.price, q: i.quantity})),
+                        method: bill.paymentMethod
+                    };
+                    
+                    const receiptString = JSON.stringify(digitalReceipt);
+                    
+                    // Check if toCanvas exists (node-qrcode style)
+                    if (lib.toCanvas) {
+                        lib.toCanvas(canvas, receiptString, {
+                            width: 100,
+                            margin: 0,
+                            color: {
+                                dark: "#000000",
+                                light: "#ffffff"
+                            }
+                        }, (error: any) => {
+                            if(error) {
+                                 console.error(error);
+                                 setQrStatus("QR Error");
+                            } else {
+                                setQrStatus(""); // Clear text if success
+                            }
+                        });
+                    } else {
+                        setQrStatus("Legacy Mode");
                     }
-                }, (error: any) => {
-                    if(error) console.error(error);
-                });
-            } catch (e) {
-                console.error("QR Gen Error", e);
-            }
+                } catch (e) {
+                    console.error("QR Gen Error", e);
+                    setQrStatus("Lib Missing");
+                }
+            };
+
+            generate();
         }
     }, [bill, shopDetails]);
 
@@ -128,8 +172,9 @@ const InvoiceModal: React.FC<InvoiceModalProps> = ({ bill, onNewBill }) => {
                             </span>
                         </div>
                         
-                        <div className="flex flex-col items-center justify-center my-4">
-                            <canvas ref={qrRef} className="p-1 bg-white"></canvas>
+                        <div className="flex flex-col items-center justify-center my-4 relative min-h-[100px]">
+                            <canvas ref={qrCanvasRef} className="p-1 bg-white"></canvas>
+                            {qrStatus && <div className="absolute inset-0 flex items-center justify-center text-[10px] text-gray-500">{qrStatus}</div>}
                             <div className="text-[9px] mt-1 text-gray-500">SCAN FOR E-RECEIPT</div>
                         </div>
                         

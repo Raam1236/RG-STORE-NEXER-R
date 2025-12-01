@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useAppContext } from '../../hooks/useAppContext';
 import { Product, BillItem, Bill } from '../../types';
 import InvoiceModal from './InvoiceModal';
@@ -21,29 +21,83 @@ interface PaymentModalProps {
 
 const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, bill, onConfirm, upiId, shopName }) => {
     const [method, setMethod] = useState<'CASH' | 'UPI' | 'NET_BANKING'>('CASH');
-    const qrRef = useRef<HTMLCanvasElement>(null);
+    const [qrError, setQrError] = useState<string | null>(null);
 
-    useEffect(() => {
-        if (isOpen && method === 'UPI' && upiId && qrRef.current && (window as any).QRCode) {
-            // UPI String Format: upi://pay?pa=UPI_ID&pn=NAME&am=AMOUNT&cu=INR
-            const upiString = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(shopName)}&am=${bill.total.toFixed(2)}&cu=INR`;
+    // Helper to ensure QR Lib is loaded
+    const ensureQrLib = async (): Promise<any> => {
+        if ((window as any).QRCode) return (window as any).QRCode;
+        if ((window as any).qrcode) return (window as any).qrcode;
+
+        return new Promise((resolve, reject) => {
+            console.log("QR Lib missing, attempting dynamic load...");
+            const script = document.createElement('script');
+            // Use a reliable CDN fallback
+            script.src = "https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.1/qrcode.min.js";
+            script.async = true;
+            script.onload = () => {
+                console.log("QR Lib loaded dynamically");
+                resolve((window as any).QRCode || (window as any).qrcode);
+            };
+            script.onerror = () => {
+                console.error("Dynamic QR Lib load failed");
+                reject(new Error("Failed to load QR library"));
+            };
+            document.body.appendChild(script);
+        });
+    };
+
+    // Use Callback Ref to ensure canvas exists before drawing
+    const qrCanvasRef = useCallback((node: HTMLCanvasElement | null) => {
+        if (node !== null && method === 'UPI' && upiId) {
+            setQrError("Initializing QR...");
             
-            try {
-                (window as any).QRCode.toCanvas(qrRef.current, upiString, {
-                    width: 180,
-                    margin: 1,
-                    color: {
-                        dark: "#000000",
-                        light: "#ffffff"
-                    }
-                }, (error: any) => {
-                    if (error) console.error("QR Generation Error:", error);
-                });
-            } catch (e) {
-                console.error("QR Library Error:", e);
-            }
+            const startGeneration = async () => {
+                try {
+                    const lib = await ensureQrLib();
+                    if (!lib) throw new Error("Library not found");
+                    generate(node, lib);
+                } catch (e) {
+                    console.error(e);
+                    setQrError("QR Library Failed to Load. Check Internet.");
+                }
+            };
+
+            startGeneration();
         }
-    }, [isOpen, method, upiId, bill.total, shopName]);
+    }, [method, upiId, bill.total, shopName]);
+
+    const generate = (canvas: HTMLCanvasElement, lib: any) => {
+        try {
+             // UPI String Format: upi://pay?pa=UPI_ID&pn=NAME&am=AMOUNT&cu=INR
+             const upiString = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(shopName)}&am=${bill.total.toFixed(2)}&cu=INR`;
+             
+             // Check if toCanvas exists (node-qrcode style)
+             if (lib.toCanvas) {
+                 lib.toCanvas(canvas, upiString, {
+                     width: 200,
+                     margin: 2,
+                     color: {
+                         dark: "#000000",
+                         light: "#ffffff"
+                     },
+                     errorCorrectionLevel: 'M'
+                 }, (error: any) => {
+                     if (error) {
+                         console.error("QR Gen Error:", error);
+                         setQrError("Failed to generate QR");
+                     } else {
+                         setQrError(null);
+                     }
+                 });
+             } else {
+                 console.warn("Using fallback QR generation or incompatible lib");
+                 setQrError("Incompatible QR Lib");
+             }
+        } catch (e) {
+             console.error("QR Logic Error:", e);
+             setQrError("Error creating QR code");
+        }
+    };
 
     if (!isOpen) return null;
 
@@ -72,7 +126,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, bill, onCo
                         </button>
                     </div>
 
-                    <div className="bg-gray-50 rounded-lg p-6 min-h-[200px] flex flex-col items-center justify-center border border-gray-200">
+                    <div className="bg-gray-50 rounded-lg p-6 min-h-[220px] flex flex-col items-center justify-center border border-gray-200">
                         {method === 'CASH' && (
                             <div className="text-center">
                                 <p className="text-gray-500 mb-2">Cash Payment Selected</p>
@@ -82,10 +136,18 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, bill, onCo
                         )}
 
                         {method === 'UPI' && (
-                            <div className="text-center flex flex-col items-center">
+                            <div className="text-center flex flex-col items-center w-full">
                                 {upiId ? (
                                     <>
-                                        <canvas ref={qrRef} className="bg-white p-2 border border-gray-300 rounded-lg shadow-sm mb-3"></canvas>
+                                        <div className="bg-white p-2 border border-gray-300 rounded-lg shadow-sm mb-3 mx-auto relative min-h-[200px] min-w-[200px] flex items-center justify-center">
+                                            <canvas ref={qrCanvasRef} key="upi-qr-canvas"></canvas>
+                                            {qrError && (
+                                                <div className="absolute inset-0 flex flex-col items-center justify-center text-red-500 text-xs font-bold text-center p-2 bg-white/95">
+                                                    <p>{qrError}</p>
+                                                    {qrError.includes("Failed") && <button onClick={() => setMethod('CASH')} className="mt-2 text-blue-600 underline">Switch to Cash</button>}
+                                                </div>
+                                            )}
+                                        </div>
                                         <p className="text-xs text-gray-500 font-mono mb-1">ID: {upiId}</p>
                                         <p className="text-sm font-bold text-blue-600 animate-pulse">Scan & Pay</p>
                                     </>
@@ -700,7 +762,11 @@ const EmployeePOS: React.FC = () => {
              </div>
 
             {/* Feature Modules */}
-            <CustomerFaceCamera onIdentify={(c) => { setCurrentBill(prev => ({ ...prev, customerName: c.name, customerMobile: c.mobile })); }} isActive={showLiveMonitor} />
+            <CustomerFaceCamera 
+                onIdentify={(c) => { setCurrentBill(prev => ({ ...prev, customerName: c.name, customerMobile: c.mobile })); }} 
+                isActive={showLiveMonitor} 
+                onClose={() => setShowLiveMonitor(false)}
+            />
             <QRScannerModal isOpen={isScannerOpen} onClose={() => setIsScannerOpen(false)} onScan={handleQRScan} />
             <VisualScannerModal isOpen={showVisualScanner} onClose={() => setShowVisualScanner(false)} onCapture={handleVisualScan} isProcessing={isProcessingVoice} />
             

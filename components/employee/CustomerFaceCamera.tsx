@@ -1,3 +1,4 @@
+
 import React, { useRef, useState, useEffect } from 'react';
 import { useAppContext } from '../../hooks/useAppContext';
 import { Customer } from '../../types';
@@ -6,6 +7,7 @@ import { analyzeCustomerFace, identifyCustomerFromImage } from '../../services/g
 interface CustomerFaceCameraProps {
     onIdentify: (customer: Customer) => void;
     isActive?: boolean; // New prop to control camera state
+    onClose?: () => void;
 }
 
 interface VisitorLog {
@@ -18,7 +20,7 @@ interface VisitorLog {
     note: string;
 }
 
-const CustomerFaceCamera: React.FC<CustomerFaceCameraProps> = ({ onIdentify, isActive = true }) => {
+const CustomerFaceCamera: React.FC<CustomerFaceCameraProps> = ({ onIdentify, isActive = true, onClose }) => {
     const { customers, setCustomers, showToast } = useAppContext();
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -330,12 +332,13 @@ const CustomerFaceCamera: React.FC<CustomerFaceCameraProps> = ({ onIdentify, isA
         overflow: 'hidden',
         minWidth: '200px',
         minHeight: '40px',
+        display: isActive ? 'flex' : 'none', // Directly control visibility
     };
 
     return (
         <div 
             style={windowStyle}
-            className={`bg-black border-2 border-primary rounded-lg shadow-2xl flex flex-col transition-shadow duration-200 ${!isActive ? 'opacity-50 pointer-events-none' : ''}`}
+            className={`bg-black border-2 border-primary rounded-lg shadow-2xl flex flex-col transition-shadow duration-200`}
         >
             <div 
                 className="bg-primary px-2 py-1 flex justify-between items-center cursor-move flex-shrink-0 select-none" 
@@ -362,9 +365,19 @@ const CustomerFaceCamera: React.FC<CustomerFaceCameraProps> = ({ onIdentify, isA
                     <span 
                         className="text-white text-xs cursor-pointer px-2 hover:bg-white/20 rounded" 
                         onClick={(e) => { e.stopPropagation(); setIsMinimized(!isMinimized); }}
+                        title={isMinimized ? "Expand" : "Minimize"}
                     >
                         {isMinimized ? 'MAX' : 'MIN'}
                     </span>
+                    <button 
+                        className="text-white hover:bg-red-500/80 p-1 rounded transition-colors"
+                        onClick={(e) => { e.stopPropagation(); onClose && onClose(); }}
+                        title="Close Monitor"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
                 </div>
             </div>
 
