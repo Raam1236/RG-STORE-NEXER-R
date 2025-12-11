@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useAppContext } from '../../hooks/useAppContext';
 import Analytics from './Analytics';
@@ -9,8 +10,9 @@ import PriceVariator from './PriceVariator';
 import AIAssistant from './AIAssistant';
 import QRGenerator from './QRGenerator';
 import SmartInsights from './SmartInsights';
+import ERPNetwork from './ERPNetwork';
 
-type Tab = 'analytics' | 'insights' | 'products' | 'employees' | 'customers' | 'settings' | 'price-variator' | 'qr-generator';
+type Tab = 'analytics' | 'insights' | 'products' | 'employees' | 'customers' | 'settings' | 'price-variator' | 'qr-generator' | 'erp-network';
 
 const AdminDashboard: React.FC = () => {
   const { currentUser, logout, shopDetails, products, sales, customers, theme, setTheme } = useAppContext();
@@ -27,6 +29,7 @@ const AdminDashboard: React.FC = () => {
     { id: 'products', label: 'Products', icon: <CubeIcon /> },
     { id: 'employees', label: 'Employees', icon: <UsersIcon /> },
     { id: 'customers', label: 'Customers', icon: <IdentificationIcon /> },
+    { id: 'erp-network', label: 'ERP & Sync', icon: <ServerIcon /> },
     { id: 'price-variator', label: 'Market AI', icon: <SparklesIcon /> },
     { id: 'qr-generator', label: 'Barcode Generator', icon: <BarcodeIcon /> },
     { id: 'settings', label: 'Shop Settings', icon: <CogIcon /> },
@@ -39,6 +42,7 @@ const AdminDashboard: React.FC = () => {
       case 'products': return <ProductManagement />;
       case 'employees': return <EmployeeManagement />;
       case 'customers': return <CustomerManagement />;
+      case 'erp-network': return <ERPNetwork />;
       case 'settings': return <ShopSettings />;
       case 'price-variator': return <PriceVariator />;
       case 'qr-generator': return <QRGenerator />;
@@ -136,5 +140,6 @@ const SunIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6
 const MoonIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>;
 const BarcodeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24"><path d="M2 6h2v12H2V6zm3 0h1v12H5V6zm2 0h2v12H7V6zm3 0h1v12h-1V6zm2 0h3v12h-3V6zm4 0h2v12h-2V6zm3 0h1v12h-1V6z"/></svg>;
 const LightningIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>;
+const ServerIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" /></svg>;
 
 export default AdminDashboard;
